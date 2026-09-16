@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bubble Sort Visualizer</title>
+    <style>
+        /* ============================================
+           Global / Reset Styles
+           ============================================ */
+        *,
+        *::before,
+        *::after {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        /* Dark mode base theme */
+        body {
+            background-color: #1a1a2e;
+            color: #e0e0e0;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+            padding: 24px 16px;
+        }
+
+        h1 {
+            font-size: 1.8rem;
+            margin-bottom: 16px;
+            color: #e94560;
+        }
+
+        /* ============================================
+           Controls Bar
+           ============================================ */
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 20px;
+        }
+
+        .controls button {
+            padding: 10px 22px;
+            font-size: 1rem;
+            font-weight: 600;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: background-color 0.2s, opacity 0.2s;
+        }
+
+        #startBtn {
+            background-color: #0f3460;
+            color: #e94560;
+        }
+
+        #startBtn:hover:not(:disabled) {
+            background-color: #16213e;
+        }
+
+        #resetBtn {
+            background-color: #e94560;
+            color: #fff;
+        }
+
+        #resetBtn:hover {
+            background-color: #c0392b;
+        }
+
+        .controls button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        /* Speed slider styling */
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: #ccc;
+            font-size: 0.95rem;
+        }
+
+        .speed-control input[type="range"] {
+            width: 120px;
+            accent-color: #e94560;
+        }
+
+        /* ============================================
+           Stats Display
+           ============================================ */
+        .stats {
+            margin-bottom: 20px;
+            font-size: 1.1rem;
+            color: #ccc;
+        }
+
+        .stats span {
+            font-weight: 700;
+            color: #e94560;
+        }
+
+        /* ============================================
+           Visualization Container
+           ============================================ */
+        .visualizer {
+            display: flex;
+            align-items: flex-end;
+            justify-content: center;
+            gap: 4px;
+            background-color: #16213e;
+            border: 2px solid #0f3460;
+            border-radius: 10px;
+            padding: 16px 12px 12px;
+            width: 100%;
+            max-width: 820px;
+            min-height: 340px;
+        }
+
+        /* Individual bar */
+        .bar {
+            width: 36px;
+            background-color: #4fc3f7;
+            border-radius: 4px 4px 0 0;
+            transition: height 0.15s ease;
+            min-height: 8px;
+        }
+
+        /* Color states */
+        .bar.comparing {
+            background-color: #ffeb3b; /* bright yellow */
+        }
+
+        .bar.sorted {
+            background-color: #66bb6a; /* green */
+        }
+
+        /* ============================================
+           Legend
+           ============================================ */
+        .legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 18px;
+            margin-top: 18px;
+            font-size: 0.9rem;
+            color: #bbb;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-swatch {
+            width: 16px;
+            height: 16px;
+            border-radius: 3px;
+        }
+
+        .swatch-default   { background-color: #4fc3f7; }
+        .swatch-comparing { background-color: #ffeb3b; }
+        .swatch-sorted    { background-color: #66bb6a; }
+    </style>
+</head>
+<body>
+
+    <h1>Bubble Sort Visualizer</h1>
+
+    <!-- Controls -->
+    <div class="controls">
+        <button id="startBtn">Start Sort</button>
+        <button id="resetBtn">Reset</button>
+        <div class="speed-control">
+            <label for="speedRange">Speed:</label>
+            <input type="range" id="speedRange" min="1" max="100" value="50">
+            <span id="speedLabel">50</span>
+        </div>
+    </div>
+
+    <!-- Live stats -->
+    <div class="stats">
+        Comparisons: <span id="comparisonCount">0</span>
+    </div>
+
+    <!-- Bars container -->
+    <div class="visualizer" id="visualizer"></div>
+
+    <!-- Color legend -->
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-swatch swatch-default"></div>
+            Default
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch swatch-comparing"></div>
+            Comparing
+        </div>
+        <div class="legend-item">
+            <div class="legend-swatch swatch-sorted"></div>
+            Sorted
+        </div>
+    </div>
+
+    <script>
+        /* ============================================
+           Configuration
+           ============================================ */
+        const ARRAY_SIZE   = 18;   // Number of bars
+        const MIN_VALUE    = 5;    // Minimum random value
+        const MAX_VALUE    = 100;  // Maximum random value
+
+        /* ============================================
+           DOM References
+           ============================================ */
+        const visualizer  = document.getElementById('visualizer');
+        const startBtn    = document.getElementById('startBtn');
+        const resetBtn    = document.getElementById('resetBtn');
+        const speedRange  = document.getElementById('speedRange');
+        const speedLabel  = document.getElementById('speedLabel');
+        const compDisplay = document.getElementById('comparisonCount');
+
+        /* ============================================
+           State Variables
+           ============================================ */
+        let array       = [];   // Current numeric array
+        let bars        = [];   // Array of DOM <div> elements
+        let sorting     = false; // Whether an animation is in progress
+        let abortFlag   = false; // Allows cancellation on reset
+        let comparisons = 0;     // Live comparison counter
+
+        /* ============================================
+           Utility: sleep with configurable delay
+           ============================================ */
+        /**
+         * Returns a promise that resolves after `delay` milliseconds.
+         * The delay is computed from the speed slider:
+         *   speed 1  → ~500 ms (slow)
+         *   speed 50 → ~250 ms (medium)
+         *   speed 100→ ~10 ms  (fast)
+         */
+        function sleep(delay) {
+            return new Promise((resolve) => setTimeout(resolve, delay));
+        }
+
+        /**
+         * Derives delay from the slider value (1-100).
+         * Higher speed → shorter delay.
+         */
+        function getDelay() {
+            const speed = parseInt(speedRange.value, 10);
+            // Map 1-100 → 500ms-10ms (inverted so higher = faster)
+            return Math.max(10, 510 - speed * 5);
+        }
+
+        /* ============================================
+           Array & Visualizer Setup
+           ============================================ */
+        /**
+         * Generates a random integer between min and max (inclusive).
+         */
+        function randomInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        /**
+         * Creates a fresh random array and builds corresponding DOM bars.
+         * Clears any previous state.
+         */
+        function generateArray() {
+            array = [];
+            for (let i = 0; i < ARRAY_SIZE; i++) {
+                array.push(randomInt(MIN_VALUE, MAX_VALUE));
+            }
+            renderBars();
+        }
+
+        /**
+         * Clears the visualizer and appends a <div class="bar"> for each
+         * element in the current array.
+         */
+        function renderBars() {
+            visualizer.innerHTML = '';
+            bars = [];
+            for (let i = 0; i < array.length; i++) {
+                const bar = document.createElement('div');
+                bar.classList.add('bar');
+                // Height proportional to value
+                bar.style.height = (array[i] / MAX_VALUE * 280) + 'px';
+                visualizer.appendChild(bar);
+                bars.push(bar);
+            }
+        }
+
+        /* ============================================
+           Sorting Algorithm (Bubble Sort)
+           ============================================ */
+        /**
+         * Performs Bubble Sort with async/await so the UI can update
+         * between each comparison step.
+         *
+         * Bubble Sort works by repeatedly stepping through the array,
+         * comparing adjacent elements and swapping them if they are in
+         * the wrong order. After each full pass, the largest unsorted
+         * element "bubbles up" to its correct position.
+         */
+        async function bubbleSort() {
+            sorting = true;
+            abortFlag = false;
+            comparisons = 0;
+            compDisplay.textContent = comparisons;
+
+            const n = array.length;
+
+            for (let i = 0; i < n - 1; i++) {
+                // Mark the element at index i as sorted (end of pass)
+                bars[i].classList.add('sorted');
+
+                for (let j = 0; j < n - i - 1; j++) {
+                    // Bail out if user reset during sorting
+                    if (abortFlag) return;
+
+                    // Highlight the two bars being compared
+                    bars[j].classList.add('comparing');
+                    bars[j + 1].classList.add('comparing');
+
+                    // Update comparison counter
+                    comparisons++;
+                    compDisplay.textContent = comparisons;
+
+                    // Wait so the user can see the comparison
+                    await sleep(getDelay());
+
+                    // Compare values
+                    if (array[j] > array[j + 1]) {
+                        // Swap the numeric values
+                        const temp = array[j];
+                        array[j] = array[j + 1];
+                        array[j + 1] = temp;
+
+                        // Update bar heights to reflect the swap
+                        const h1 = bars[j].style.height;
+                        const h2 = bars[j + 1].style.height;
+                        bars[j].style.height = h2;
+                        bars[j + 1].style.height = h1;
+
+                        await sleep(getDelay());
+                    }
+
+                    // Remove comparing highlight from both bars
+                    bars[j].classList.remove('comparing');
+                    bars[j + 1].classList.remove('comparing');
+                }
+            }
+
+            // Mark the last element as sorted
+            bars[n - 1].classList.add('sorted');
+
+            sorting = false;
+            startBtn.disabled = false;
+        }
+
+        /* ============================================
+           Event Handlers
+           ============================================ */
+
+        // Start Sort button: begin the animation
+        startBtn.addEventListener('click', () => {
+            if (sorting) return; // Prevent multiple clicks
+            startBtn.disabled = true;
+            bubbleSort();
+        });
+
+        // Reset button: cancel current sort, regenerate array
+        resetBtn.addEventListener('click', () => {
+            abortFlag = true;       // Signal bubbleSort to stop
+            sorting = false;
+            startBtn.disabled = false;
+            comparisons = 0;
+            compDisplay.textContent = 0;
+            generateArray();
+        });
+
+        // Speed slider: update the displayed label
+        speedRange.addEventListener('input', () => {
+            speedLabel.textContent = speedRange.value;
+        });
+
+        /* ============================================
+           Initialise on page load
+           ============================================ */
+        generateArray();
+    </script>
+</body>
+</html>

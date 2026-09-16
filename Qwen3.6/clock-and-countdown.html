@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Clock, Stopwatch &amp; Countdown</title>
+  <style>
+    /* ===================== Base / Reset ===================== */
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    :root {
+      --bg:          #1a1a2e;
+      --surface:     #16213e;
+      --border:      #0f3460;
+      --text:        #e2e8f0;
+      --accent:      #e94560;
+      --accent-hover:#ff6b81;
+      --green:       #2ecc71;
+      --green-hover: #55efc4;
+      --yellow:      #f1c40f;
+      --orange:      #e67e22;
+      --radius:      10px;
+    }
+
+    /* Red flash background when countdown ends */
+    body.flash {
+      animation: flashBg 1.5s ease-in-out 3;
+    }
+    @keyframes flashBg {
+      0%, 100% { background-color: var(--bg); }
+      50%      { background-color: #8b0000; }
+    }
+
+    body {
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      background-color: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem 1rem;
+      transition: background-color 0.3s;
+    }
+
+    h1 {
+      font-size: 1.6rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+      letter-spacing: 0.04em;
+    }
+
+    /* ===================== Layout ===================== */
+    .app {
+      width: 100%;
+      max-width: 600px;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    section {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 1.5rem;
+    }
+
+    section h2 {
+      font-size: 1.15rem;
+      margin-bottom: 1rem;
+      text-align: center;
+      color: var(--accent);
+    }
+
+    /* ===================== Buttons ===================== */
+    button {
+      font: inherit;
+      font-size: 0.95rem;
+      cursor: pointer;
+      border: none;
+      border-radius: 6px;
+      padding: 0.55rem 1.2rem;
+      background: var(--accent);
+      color: #fff;
+      transition: background 0.2s, opacity 0.2s, transform 0.1s;
+    }
+    button:hover { background: var(--accent-hover); }
+    button:focus-visible {
+      outline: 2px solid var(--text);
+      outline-offset: 2px;
+    }
+    button:active { transform: scale(0.97); }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* Secondary / accent colours for different actions */
+    button.stop    { background: var(--orange); }
+    button.stop:hover { background: #d35400; }
+
+    button.reset   { background: #6c757d; }
+    button.reset:hover { background: #8b959e; }
+
+    button.lap     { background: var(--yellow); color: #222; }
+    button.lap:hover { background: #f39c12; }
+
+    button.start   { background: var(--green); }
+    button.start:hover { background: var(--green-hover); }
+
+    /* ===================== Clock Section ===================== */
+    #clock-time {
+      font-size: 3.5rem;
+      font-weight: 700;
+      text-align: center;
+      letter-spacing: 0.06em;
+      font-variant-numeric: tabular-nums;
+    }
+
+    #clock-date {
+      text-align: center;
+      margin-top: 0.4rem;
+      font-size: 1rem;
+      opacity: 0.8;
+    }
+
+    #clock-toggle {
+      display: block;
+      margin: 1rem auto 0;
+    }
+
+    /* ===================== Stopwatch Section ===================== */
+    #sw-display {
+      font-size: 2.6rem;
+      font-weight: 700;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 1rem;
+    }
+
+    #sw-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.5rem;
+      justify-content: center;
+    }
+
+    #laps-list {
+      list-style: none;
+      margin-top: 1rem;
+      max-height: 200px;
+      overflow-y: auto;
+    }
+    #laps-list li {
+      padding: 0.35rem 0;
+      border-bottom: 1px solid var(--border);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.95rem;
+    }
+
+    /* ===================== Countdown Section ===================== */
+    #countdown-input-wrap {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      justify-content: center;
+      margin-bottom: 1rem;
+    }
+    #countdown-input-wrap label {
+      font-size: 0.95rem;
+    }
+    #countdown-input {
+      width: 90px;
+      padding: 0.4rem 0.6rem;
+      font-size: 1.1rem;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg);
+      color: var(--text);
+      text-align: center;
+    }
+    #countdown-input:focus {
+      outline: 2px solid var(--accent);
+      outline-offset: 1px;
+    }
+
+    #countdown-display {
+      font-size: 2.6rem;
+      font-weight: 700;
+      text-align: center;
+      font-variant-numeric: tabular-nums;
+      margin-bottom: 0.8rem;
+    }
+
+    #time-up {
+      text-align: center;
+      font-size: 1.3rem;
+      font-weight: 700;
+      color: var(--accent);
+      min-height: 1.5em;
+    }
+
+    /* ===================== Responsive ===================== */
+    @media (max-width: 480px) {
+      #clock-time   { font-size: 2.4rem; }
+      #sw-display,
+      #countdown-display { font-size: 2rem; }
+      section { padding: 1rem; }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Clock, Stopwatch &amp; Countdown</h1>
+
+  <div class="app">
+
+    <!-- ==================== Digital Clock ==================== -->
+    <section id="clock-section">
+      <h2>Digital Clock</h2>
+      <div id="clock-time">00:00:00</div>
+      <div id="clock-date"></div>
+      <button id="clock-toggle" type="button">Switch to 12-Hour</button>
+    </section>
+
+    <!-- ==================== Stopwatch ==================== -->
+    <section id="stopwatch-section">
+      <h2>Stopwatch</h2>
+      <div id="sw-display">00:00:00</div>
+      <div id="sw-controls">
+        <button id="sw-start"    type="button" class="start">Start</button>
+        <button id="sw-stop"     type="button" class="stop" disabled>Stop</button>
+        <button id="sw-reset"    type="button" class="reset">Reset</button>
+        <button id="sw-lap"      type="button" class="lap">Lap</button>
+      </div>
+      <ul id="laps-list"></ul>
+    </section>
+
+    <!-- ==================== Countdown ==================== -->
+    <section id="countdown-section">
+      <h2>Countdown Timer</h2>
+      <div id="countdown-input-wrap">
+        <label for="countdown-input">Seconds:</label>
+        <input id="countdown-input" type="number" min="1" value="60" />
+      </div>
+      <div id="countdown-display">00:00</div>
+      <div style="text-align:center; margin-bottom: 0.8rem;">
+        <button id="cd-start" type="button" class="start">Start Countdown</button>
+      </div>
+      <div id="time-up"></div>
+    </section>
+
+  </div>
+
+  <script>
+    /* ==========================================================
+     *  Shared helpers
+     * ========================================================== */
+
+    // Pad a number to two digits
+    function pad(n) {
+      return String(n).padStart(2, '0');
+    }
+
+    // Format elapsed ms into MM:SS:MS (stopwatch)
+    function formatSw(ms) {
+      const totalSec = Math.floor(ms / 1000);
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      const cs = Math.floor((ms % 1000) / 10); // centiseconds → displayed as "MS"
+      return `${pad(min)}:${pad(sec)}:${pad(cs)}`;
+    }
+
+    // Format remaining seconds into MM:SS (countdown)
+    function formatCd(totalSec) {
+      const min = Math.floor(totalSec / 60);
+      const sec = totalSec % 60;
+      return `${pad(min)}:${pad(sec)}`;
+    }
+
+    /* ==========================================================
+     *  1. Digital Clock
+     * ========================================================== */
+
+    const clockTimeEl  = document.getElementById('clock-time');
+    const clockDateEl  = document.getElementById('clock-date');
+    const clockToggle  = document.getElementById('clock-toggle');
+
+    // Read saved preference or default to 24-hour
+    let use12Hour = localStorage.getItem('clock12Hour') === 'true';
+
+    function updateClock() {
+      const now = new Date();
+
+      // --- Time ---
+      let hours = now.getHours();
+      let ampm = '';
+      if (use12Hour) {
+        ampm = hours >= 12 ? ' PM' : ' AM';
+        hours = hours % 12 || 12; // convert 0 → 12
+      }
+      clockTimeEl.textContent =
+        `${pad(hours)}:${pad(now.getMinutes())}:${pad(now.getSeconds())}${ampm}`;
+
+      // --- Date ---
+      const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' };
+      clockDateEl.textContent = now.toLocaleDateString('en-US', options);
+    }
+
+    // Toggle 12h / 24h
+    function toggleClockFormat() {
+      use12Hour = !use12Hour;
+      clockToggle.textContent = use12Hour ? 'Switch to 24-Hour' : 'Switch to 12-Hour';
+      localStorage.setItem('clock12Hour', use12Hour);
+      updateClock(); // immediate refresh
+    }
+
+    clockToggle.addEventListener('click', toggleClockFormat);
+
+    // Kick off the clock interval
+    updateClock();
+    const clockInterval = setInterval(updateClock, 1000);
+
+    /* ==========================================================
+     *  2. Stopwatch
+     * ========================================================== */
+
+    const swDisplay = document.getElementById('sw-display');
+    const swStart   = document.getElementById('sw-start');
+    const swStop    = document.getElementById('sw-stop');
+    const swReset   = document.getElementById('sw-reset');
+    const swLap     = document.getElementById('sw-lap');
+    const lapsList  = document.getElementById('laps-list');
+
+    let swRunning  = false;
+    let swElapsed  = 0;   // accumulated ms before current run
+    let swStartTs  = 0;   // performance.now() snapshot
+    let swInterval = null;
+
+    // Load saved laps from localStorage
+    let laps = [];
+    try {
+      const saved = localStorage.getItem('stopwatchLaps');
+      if (saved) laps = JSON.parse(saved);
+    } catch (_) { /* ignore corrupt data */ }
+
+    function renderLaps() {
+      lapsList.innerHTML = '';
+      laps.forEach((lapMs, i) => {
+        const li = document.createElement('li');
+        li.textContent = `Lap ${i + 1}: ${formatSw(lapMs)}`;
+        lapsList.appendChild(li);
+      });
+    }
+
+    function saveLaps() {
+      localStorage.setItem('stopwatchLaps', JSON.stringify(laps));
+    }
+
+    renderLaps(); // show persisted laps on load
+
+    // Tick: called every 10 ms to keep display ~centisecond resolution
+    function tickStopwatch() {
+      const now = performance.now();
+      swDisplay.textContent = formatSw(swElapsed + (now - swStartTs));
+    }
+
+    function startStopwatch() {
+      if (swRunning) return;          // guard against double-start
+      swRunning = true;
+      swStartTs = performance.now();
+      swInterval = setInterval(tickStopwatch, 10);
+      swStart.disabled  = true;
+      swStop.disabled   = false;
+    }
+
+    function stopStopwatch() {
+      if (!swRunning) return;
+      clearInterval(swInterval);
+      swInterval = null;
+      swElapsed += performance.now() - swStartTs;
+      swRunning = false;
+      swDisplay.textContent = formatSw(swElapsed);
+      swStart.disabled  = false;
+      swStop.disabled   = true;
+    }
+
+    function resetStopwatch() {
+      clearInterval(swInterval);
+      swInterval = null;
+      swRunning  = false;
+      swElapsed  = 0;
+      swStartTs  = 0;
+      swDisplay.textContent = formatSw(0);
+      swStart.disabled  = false;
+      swStop.disabled   = true;
+      // Laps persist across resets per spec
+    }
+
+    function recordLap() {
+      const current = swRunning
+        ? swElapsed + (performance.now() - swStartTs)
+        : swElapsed;
+      laps.push(current);
+      saveLaps();
+      renderLaps();
+    }
+
+    swStart.addEventListener('click', startStopwatch);
+    swStop.addEventListener('click', stopStopwatch);
+    swReset.addEventListener('click', resetStopwatch);
+    swLap.addEventListener('click', recordLap);
+
+    /* ==========================================================
+     *  3. Countdown Timer
+     * ========================================================== */
+
+    const cdInput      = document.getElementById('countdown-input');
+    const cdDisplay    = document.getElementById('countdown-display');
+    const cdStartBtn   = document.getElementById('cd-start');
+    const timeUpEl     = document.getElementById('time-up');
+
+    let cdRemaining = 0;
+    let cdInterval  = null;
+    let cdRunning   = false;
+
+    function updateCdDisplay() {
+      cdDisplay.textContent = formatCd(Math.max(cdRemaining, 0));
+    }
+
+    function startCountdown() {
+      // Read input; treat anything <= 0 as 1 second minimum
+      const raw = parseInt(cdInput.value, 10);
+      if (isNaN(raw) || raw <= 0) {
+        cdDisplay.textContent = 'Invalid';
+        return;
+      }
+
+      if (cdRunning) return;   // should already be disabled, double-guard
+      cdRunning = true;
+      cdRemaining = raw;
+      updateCdDisplay();
+      cdStartBtn.disabled = true;
+      timeUpEl.textContent = '';
+
+      cdInterval = setInterval(() => {
+        cdRemaining--;
+        updateCdDisplay();
+        if (cdRemaining <= 0) {
+          finishCountdown();
+        }
+      }, 1000);
+    }
+
+    function finishCountdown() {
+      clearInterval(cdInterval);
+      cdInterval = null;
+      cdRunning = false;
+      cdRemaining = 0;
+      updateCdDisplay();
+      cdStartBtn.disabled = false;
+
+      // Visible "Time is up!" message
+      timeUpEl.textContent = 'Time is up!';
+
+      // Flash background red for a few seconds
+      document.body.classList.add('flash');
+      setTimeout(() => document.body.classList.remove('flash'), 4500);
+
+      // Optional browser alert (does NOT replace visible message)
+      setTimeout(() => alert('Time is up!'), 100);
+    }
+
+    cdStartBtn.addEventListener('click', startCountdown);
+
+    // Validate input: only positive whole numbers
+    cdInput.addEventListener('input', () => {
+      if (cdRunning) return;   // don't allow edits during countdown
+      const val = parseInt(cdInput.value, 10);
+      if (isNaN(val) || val <= 0) {
+        cdInput.setCustomValidity('Enter a positive whole number');
+      } else {
+        cdInput.setCustomValidity('');
+      }
+    });
+
+    /* ==========================================================
+     *  Cleanup on page unload (good practice)
+     * ========================================================== */
+    window.addEventListener('beforeunload', () => {
+      clearInterval(clockInterval);
+      clearInterval(cdInterval);
+      clearInterval(swInterval);
+    });
+  </script>
+</body>
+</html>
