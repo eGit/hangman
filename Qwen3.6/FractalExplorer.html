@@ -1,0 +1,913 @@
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fractal Explorer</title>
+<style>
+:root {
+  --bg:#0d1117; --panel:#161b22; --border:#30363d;
+  --text:#c9d1d9; --dim:#8b949e; --accent:#58a6ff;
+}
+* { box-sizing:border-box; margin:0; padding:0; }
+body {
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--bg); color:var(--text);
+  height:100vh; height:100dvh; display:flex; overflow:hidden;
+}
+button,input,select { font:inherit; }
+button { cursor:pointer; color:inherit; }
+#sidebar {
+  width:300px; min-width:260px; overflow-y:auto;
+  background:var(--panel); border-right:1px solid var(--border);
+}
+h1 { font-size:1.2rem; padding:16px; border-bottom:1px solid var(--border); }
+.section { padding:13px 15px; border-bottom:1px solid var(--border); }
+.section-title {
+  font-size:.72rem; text-transform:uppercase; letter-spacing:.08em;
+  color:var(--dim); margin-bottom:10px; font-weight:700;
+}
+#fractal-grid { display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+.fractal-btn,.btn {
+  background:#21262d; border:1px solid var(--border);
+  border-radius:6px; padding:8px; font-size:.8rem;
+}
+.fractal-btn { display:flex; flex-direction:column; align-items:center; gap:4px; }
+.fractal-btn .emoji { font-size:1.35rem; }
+.fractal-btn:hover,.btn:hover { border-color:var(--accent); background:#30363d; }
+.fractal-btn.active,.btn.primary { background:var(--accent); color:#fff; }
+.control-row {
+  display:grid; grid-template-columns:minmax(80px,1fr) minmax(80px,1fr) 42px;
+  align-items:center; gap:7px; margin:10px 0;
+}
+.control-row label { font-size:.78rem; color:var(--dim); }
+.control-row input { min-width:0; width:100%; accent-color:var(--accent); }
+.control-row input[type=number] {
+  background:#21262d; border:1px solid var(--border);
+  border-radius:4px; color:var(--text); padding:4px; width:100%;
+}
+.val { text-align:right; font-size:.75rem; color:var(--accent); }
+#color-presets { display:flex; flex-wrap:wrap; gap:6px; }
+.color-swatch {
+  width:28px; height:28px; border:2px solid transparent; border-radius:5px;
+}
+.color-swatch.active { border-color:white; }
+.btn-row { display:flex; flex-wrap:wrap; gap:6px; margin-top:6px; }
+.btn { padding:7px 9px; }
+#fractal-info { font-size:.8rem; color:var(--dim); line-height:1.6; }
+#main { flex:1; min-width:0; display:flex; flex-direction:column; }
+#toolbar {
+  display:flex; justify-content:space-between; gap:8px; align-items:center;
+  padding:10px 14px; background:var(--panel); border-bottom:1px solid var(--border);
+  font-size:.8rem; color:var(--dim);
+}
+#canvas-wrap { flex:1; min-height:0; position:relative; overflow:hidden; background:#000; }
+canvas { display:block; width:100%; height:100%; cursor:grab; touch-action:none; }
+#info-overlay,#zoom-indicator {
+  position:absolute; background:#0d1117dd; border-radius:7px;
+  padding:8px 12px; font-size:.76rem; color:var(--dim); pointer-events:none;
+}
+#info-overlay { left:12px; bottom:12px; line-height:1.7; }
+#zoom-indicator { top:12px; right:12px; color:var(--accent); }
+#loading {
+  display:none; position:absolute; inset:0; align-items:center;
+  justify-content:center; background:#0008; color:var(--accent);
+  pointer-events:none;
+}
+#loading.visible { display:flex; }
+#progress-bar {
+  position:absolute; bottom:0; left:0; height:3px;
+  width:0; background:var(--accent);
+}
+#history-panel {
+  display:none; position:absolute; right:0; top:0; width:210px;
+  max-height:220px; overflow:auto; background:var(--panel);
+  border:1px solid var(--border); padding:10px;
+}
+#history-panel.visible { display:block; }
+.history-item { padding:5px 0; font-size:.75rem; cursor:pointer; }
+@media(max-width:700px) {
+  body { flex-direction:column; }
+  #sidebar { width:100%; min-width:0; max-height:42dvh; }
+  #fractal-grid { grid-template-columns:repeat(5,minmax(0,1fr)); }
+  .fractal-btn { padding:6px 2px; font-size:.65rem; }
+  .fractal-btn .emoji { font-size:1.1rem; }
+}
+</style>
+</head>
+<body>
+<aside id="sidebar">
+  <h1>🌀 Fractal Explorer</h1>
+  <section class="section">
+    <div class="section-title">Fractal Type</div>
+    <div id="fractal-grid"></div>
+  </section>
+  <section class="section">
+    <div class="section-title">Parameters</div>
+    <div id="params-container"></div>
+  </section>
+  <section class="section">
+    <div class="section-title">Color Scheme</div>
+    <div id="color-presets"></div>
+  </section>
+  <section class="section">
+    <div class="section-title">Actions</div>
+    <div class="btn-row">
+      <button class="btn primary" id="btn-render">🎨 Render</button>
+      <button class="btn" id="btn-animate">▶ Animate</button>
+      <button class="btn" id="btn-export">💾 Export PNG</button>
+    </div>
+    <div class="btn-row">
+      <button class="btn" id="btn-reset">↺ Reset</button>
+      <button class="btn" id="btn-history">📜 History</button>
+      <button class="btn" id="btn-fullscreen">⛶ Fullscreen</button>
+    </div>
+  </section>
+  <section class="section">
+    <div class="section-title">About</div>
+    <div id="fractal-info"></div>
+  </section>
+</aside>
+
+<main id="main">
+  <div id="toolbar">
+    <span id="status-text">Choose a fractal</span>
+    <span id="canvas-size"></span>
+  </div>
+  <div id="canvas-wrap">
+    <canvas id="fractal-canvas"></canvas>
+    <div id="info-overlay">
+      <div id="info-coords">X: 0.00000 Y: 0.00000</div>
+      <div id="info-zoom">Zoom: 1×</div>
+    </div>
+    <div id="zoom-indicator">1×</div>
+    <div id="loading">Rendering…</div>
+    <div id="progress-bar"></div>
+    <div id="history-panel"></div>
+  </div>
+</main>
+
+<script>
+"use strict";
+
+// --------------------------------------------------
+// Fractal definitions and parameters
+// --------------------------------------------------
+
+const fractals = [
+  {
+    id:"mandelbrot", name:"Mandelbrot", emoji:"🌍",
+    info:"The famous Mandelbrot set, generated by z = z² + c.",
+    defaults:{maxIter:180},
+    fields:[["maxIter","Iterations",50,1200,10]]
+  },
+  {
+    id:"julia", name:"Julia Set", emoji:"🫧",
+    info:"A Julia set with a fixed complex parameter c.",
+    defaults:{maxIter:180,cReal:-0.7269,cImag:0.1889},
+    fields:[
+      ["maxIter","Iterations",50,1200,10],
+      ["cReal","C real",-2,2,0.001],
+      ["cImag","C imaginary",-2,2,0.001]
+    ]
+  },
+  {
+    id:"burningship", name:"Burning Ship", emoji:"🔥",
+    info:"A flame-like fractal formed by taking absolute values.",
+    defaults:{maxIter:180},
+    fields:[["maxIter","Iterations",50,1000,10]]
+  },
+  {
+    id:"tricorn", name:"Tricorn", emoji:"🎩",
+    info:"The Mandelbar set, using the conjugate of z.",
+    defaults:{maxIter:180},
+    fields:[["maxIter","Iterations",50,1000,10]]
+  },
+  {
+    id:"newton", name:"Newton Fractal", emoji:"🔬",
+    info:"Newton's method applied to z³ − 1.",
+    defaults:{maxIter:35},
+    fields:[["maxIter","Iterations",10,100,1]]
+  },
+  {
+    id:"phoenix", name:"Phoenix", emoji:"🦅",
+    info:"A memory fractal whose iteration depends on the previous value.",
+    defaults:{maxIter:180,cReal:0.25,param:-0.3},
+    fields:[
+      ["maxIter","Iterations",50,1000,10],
+      ["cReal","Memory factor",-1,1,0.01],
+      ["param","P",-1,1,0.01]
+    ]
+  },
+  {
+    id:"kaleidoscope", name:"Kaleidoscope", emoji:"🪩",
+    info:"A power-map fractal with adjustable exponent.",
+    defaults:{maxIter:150,cReal:0,param:2},
+    fields:[
+      ["maxIter","Iterations",50,800,10],
+      ["cReal","Real offset",-1,1,0.01],
+      ["param","Power",2,8,1]
+    ]
+  },
+  {
+    id:"hedgehog", name:"Hedgehog", emoji:"🦔",
+    info:"A cubic polynomial fractal with intricate branching.",
+    defaults:{maxIter:150,cReal:0.1,cImag:0},
+    fields:[
+      ["maxIter","Iterations",50,800,10],
+      ["cReal","C real",-1,1,0.01],
+      ["cImag","C imaginary",-1,1,0.01]
+    ]
+  },
+  {
+    id:"burning", name:"Burning Kaleido", emoji:"🌋",
+    info:"A burning-ship-style fractal with adjustable complex parameter.",
+    defaults:{maxIter:180,cReal:-0.4,cImag:0.6},
+    fields:[
+      ["maxIter","Iterations",50,1000,10],
+      ["cReal","C real",-2,2,0.01],
+      ["cImag","C imaginary",-2,2,0.01]
+    ]
+  },
+  {
+    id:"cpotts", name:"Complex Potts", emoji:"🧊",
+    info:"A Newton fractal for zⁿ − 1 with adjustable root count.",
+    defaults:{maxIter:35,param:3},
+    fields:[
+      ["maxIter","Iterations",10,100,1],
+      ["param","Root power",2,8,1]
+    ]
+  }
+];
+
+const views = {
+  mandelbrot:  [-2.5,1,-1.5,1.5],
+  julia:       [-2,2,-2,2],
+  burningship: [-2.3,1.2,-2,0.5],
+  tricorn:     [-2,1,-1.5,1.5],
+  newton:      [-1.5,1.5,-1.5,1.5],
+  phoenix:     [-2,2,-2,2],
+  kaleidoscope:[-2,2,-2,2],
+  hedgehog:    [-2,2,-2,2],
+  burning:     [-2,2,-2,2],
+  cpotts:      [-1.5,1.5,-1.5,1.5]
+};
+
+const schemes = [
+  {name:"Electric",colors:[[0,0,0],[255,0,128],[0,255,255],[255,255,0],[255,100,0],[0,255,100],[128,0,255]]},
+  {name:"Fire",colors:[[0,0,0],[139,0,0],[255,69,0],[255,165,0],[255,255,0],[255,255,200],[255,255,255]]},
+  {name:"Ocean",colors:[[0,0,0],[0,0,80],[0,50,150],[0,120,200],[0,200,255],[100,255,255],[200,255,255]]},
+  {name:"Neon",colors:[[0,0,0],[0,255,0],[0,255,255],[255,255,0],[255,0,255],[255,0,0],[255,255,255]]},
+  {name:"Sunset",colors:[[0,0,0],[75,0,130],[148,0,211],[255,105,180],[255,160,122],[255,215,0],[255,255,255]]},
+  {name:"Forest",colors:[[0,0,0],[0,50,0],[0,100,0],[50,150,50],[100,200,100],[150,255,150],[255,255,255]]},
+  {name:"Mono",colors:[[0,0,0],[40,40,40],[90,90,90],[150,150,150],[210,210,210],[255,255,255]]},
+  {name:"Psychedelic",colors:[[0,0,0],[255,0,0],[255,255,0],[0,255,0],[0,255,255],[0,0,255],[255,0,255],[255,255,255]]}
+];
+
+const state = {
+  fractal:null, zoom:1, offsetX:0, offsetY:0,
+  renderId:0, animating:false, animFrame:null,
+  dragging:false, dragStart:null, history:[]
+};
+
+const canvas = document.getElementById("fractal-canvas");
+const ctx = canvas.getContext("2d", {alpha:false});
+const wrap = document.getElementById("canvas-wrap");
+let currentScheme = schemes[0];
+let lastRenderParams = null;
+
+// --------------------------------------------------
+// UI setup
+// --------------------------------------------------
+
+function buildFractalGrid() {
+  const grid = document.getElementById("fractal-grid");
+  fractals.forEach(f => {
+    const button = document.createElement("button");
+    button.className = "fractal-btn";
+    button.innerHTML = `<span class="emoji">${f.emoji}</span><span>${f.name}</span>`;
+    button.addEventListener("click", () => selectFractal(f));
+    grid.appendChild(button);
+  });
+}
+
+function buildParams(f) {
+  const container = document.getElementById("params-container");
+  container.replaceChildren();
+
+  f.fields.forEach(([key,label,min,max,step]) => {
+    const row = document.createElement("div");
+    row.className = "control-row";
+
+    const lab = document.createElement("label");
+    lab.textContent = label;
+    lab.htmlFor = "param-" + key;
+
+    const input = document.createElement("input");
+    input.id = "param-" + key;
+    input.type = key === "maxIter" || key === "param" && f.id !== "phoenix" && f.id !== "hedgehog" ? "range" : "number";
+    input.min = min;
+    input.max = max;
+    input.step = step;
+    input.value = f.defaults[key];
+
+    // Keep the parameter control compact and readable.
+    if (input.type === "range") {
+      input.style.gridColumn = "2";
+    }
+
+    const value = document.createElement("span");
+    value.className = "val";
+    value.textContent = input.value;
+
+    input.addEventListener("input", () => {
+      value.textContent = input.value;
+      if (state.fractal && !state.animating) renderFractal();
+    });
+
+    row.append(lab,input,value);
+    container.appendChild(row);
+  });
+}
+
+function getParams(f) {
+  const params = {...f.defaults};
+  f.fields.forEach(([key]) => {
+    const input = document.getElementById("param-" + key);
+    if (input) params[key] = Number(input.value);
+  });
+  return params;
+}
+
+function buildColorPresets() {
+  const container = document.getElementById("color-presets");
+  container.replaceChildren();
+
+  schemes.forEach((scheme,i) => {
+    const swatch = document.createElement("button");
+    swatch.className = "color-swatch";
+    swatch.title = scheme.name;
+    swatch.setAttribute("aria-label",scheme.name);
+
+    swatch.style.background = "linear-gradient(90deg," +
+      scheme.colors.map((c,j) =>
+        `rgb(${c.join(",")}) ${j/(scheme.colors.length-1)*100}%`
+      ).join(",") + ")";
+
+    if (scheme === currentScheme) swatch.classList.add("active");
+
+    swatch.addEventListener("click", () => {
+      currentScheme = scheme;
+      container.querySelectorAll(".color-swatch").forEach(el => el.classList.remove("active"));
+      swatch.classList.add("active");
+      renderFractal();
+    });
+
+    container.appendChild(swatch);
+  });
+}
+
+function selectFractal(f) {
+  stopAnimation();
+  state.fractal = f;
+  state.zoom = 1;
+  state.offsetX = 0;
+  state.offsetY = 0;
+
+  document.querySelectorAll(".fractal-btn").forEach((button,i) => {
+    button.classList.toggle("active",fractals[i] === f);
+  });
+
+  buildParams(f);
+  document.getElementById("fractal-info").textContent = f.info;
+  document.getElementById("status-text").textContent = `${f.emoji} ${f.name}`;
+  addHistory(f.name);
+  renderFractal();
+}
+
+function addHistory(name) {
+  state.history.unshift({name,time:new Date().toLocaleTimeString()});
+  state.history = state.history.slice(0,20);
+
+  const panel = document.getElementById("history-panel");
+  panel.replaceChildren();
+
+  state.history.forEach(item => {
+    const el = document.createElement("div");
+    el.className = "history-item";
+    el.textContent = `${item.time} — ${item.name}`;
+    el.addEventListener("click", () => {
+      const f = fractals.find(fr => fr.name === item.name);
+      if (f) selectFractal(f);
+    });
+    panel.appendChild(el);
+  });
+}
+
+// --------------------------------------------------
+// Fractal mathematics
+// Each function returns -1 for interior/root failure,
+// otherwise a non-negative coloring value.
+// --------------------------------------------------
+
+function escapeTime(zr,zi,cr,ci,maxIter,mode="normal") {
+  let iter = 0;
+  let r2 = zr*zr + zi*zi;
+
+  while (r2 <= 4 && iter < maxIter) {
+    let nr,ni;
+
+    if (mode === "ship") {
+      const ar = Math.abs(zr), ai = Math.abs(zi);
+      nr = ar*ar-ai*ai+cr;
+      ni = 2*ar*ai+ci;
+    } else if (mode === "tricorn") {
+      nr = zr*zr-zi*zi+cr;
+      ni = -2*zr*zi+ci;
+    } else {
+      nr = zr*zr-zi*zi+cr;
+      ni = 2*zr*zi+ci;
+    }
+
+    zr = nr;
+    zi = ni;
+    r2 = zr*zr+zi*zi;
+    iter++;
+  }
+
+  if (iter >= maxIter) return -1;
+
+  // Smooth coloring prevents visible iteration bands.
+  if (r2 > 1) {
+    const smooth = iter + 1 - Math.log2(Math.max(1e-12,Math.log2(Math.sqrt(r2))));
+    return Number.isFinite(smooth) ? Math.max(0,smooth) : iter;
+  }
+
+  return iter;
+}
+
+function newtonFractal(x,y,n,maxIter) {
+  let zr=x, zi=y;
+  const tol=1e-7;
+
+  for (let i=0;i<maxIter;i++) {
+    const r=Math.hypot(zr,zi);
+    if (r < 1e-12 || !Number.isFinite(r)) return -1;
+
+    const theta=Math.atan2(zi,zr);
+    const rn=Math.pow(r,n);
+    const fr=rn*Math.cos(n*theta)-1;
+    const fi=rn*Math.sin(n*theta);
+
+    const dr=n*Math.pow(r,n-1);
+    const ar=dr*Math.cos((n-1)*theta);
+    const ai=dr*Math.sin((n-1)*theta);
+    const den=ar*ar+ai*ai;
+
+    if (den < 1e-24 || !Number.isFinite(den)) return -1;
+
+    const nr=zr-(fr*ar+fi*ai)/den;
+    const ni=zi-(fi*ar-fr*ai)/den;
+
+    const delta=Math.hypot(nr-zr,ni-zi);
+    zr=nr;
+    zi=ni;
+
+    if (!Number.isFinite(zr+zi)) return -1;
+
+    if (delta < tol || Math.hypot(fr,fi) < tol) {
+      const rootAngle=Math.atan2(zi,zr);
+      const angle=((rootAngle%(2*Math.PI))+2*Math.PI)%(2*Math.PI);
+      const root=Math.round(angle/(2*Math.PI)*n)%n;
+      return root*8 + i*0.025;
+    }
+  }
+
+  return -1;
+}
+
+function phoenixCompute(x,y,p) {
+  let zr=x,zi=y,pr=0,pi=0;
+  let i=0;
+  while (zr*zr+zi*zi<=16 && i<p.maxIter) {
+    const nr=zr*zr-zi*zi+x+p.cReal*pr+p.param;
+    const ni=2*zr*zi+y+p.cReal*pi;
+    pr=zr; pi=zi; zr=nr; zi=ni; i++;
+  }
+  return i>=p.maxIter ? -1 : i;
+}
+
+function computeFractal(x,y,p) {
+  const f=state.fractal;
+
+  switch(f.id) {
+    case "mandelbrot":
+      return escapeTime(0,0,x,y,p.maxIter);
+
+    case "julia":
+      return escapeTime(x,y,p.cReal,p.cImag,p.maxIter);
+
+    case "burningship":
+      return escapeTime(0,0,x,y,p.maxIter,"ship");
+
+    case "tricorn":
+      return escapeTime(0,0,x,y,p.maxIter,"tricorn");
+
+    case "newton":
+      return newtonFractal(x,y,3,p.maxIter);
+
+    case "phoenix":
+      return phoenixCompute(x,y,p);
+
+    case "kaleidoscope":
+      return escapeTime(0,0,x,y,p.maxIter,"normal") >= 0 &&
+             false ? -1 : powerFractal(x,y,p.param,p.cReal,0,p.maxIter);
+
+    case "hedgehog":
+      return polynomialFractal(x,y,p.cReal,p.cImag,p.maxIter);
+
+    case "burning":
+      return escapeTime(0,0,x,y,p.maxIter,"ship");
+
+    case "cpotts":
+      return newtonFractal(x,y,Math.round(p.param),p.maxIter);
+
+    default:
+      return -1;
+  }
+}
+
+function powerFractal(x,y,power,cr,ci,maxIter) {
+  let zr=0,zi=0;
+  for(let i=0;i<maxIter;i++) {
+    const r=Math.hypot(zr,zi);
+    const theta=Math.atan2(zi,zr);
+    const rp=Math.pow(r,power);
+    zr=rp*Math.cos(power*theta)+x+cr;
+    zi=rp*Math.sin(power*theta)+y+ci;
+
+    const m=zr*zr+zi*zi;
+    if (!Number.isFinite(m) || m>100) return i+1;
+  }
+  return -1;
+}
+
+function polynomialFractal(x,y,cr,ci,maxIter) {
+  let zr=0,zi=0;
+
+  for(let i=0;i<maxIter;i++) {
+    const r2=zr*zr+zi*zi;
+    const nr=zr*(zr*zr-3*zi*zi);
+    const ni=zi*(3*zr*zr-zi*zi);
+    zr=nr+cr*r2+x;
+    zi=ni+ci*r2+y;
+
+    const m=zr*zr+zi*zi;
+    if (!Number.isFinite(m) || m>100) return i+1;
+  }
+  return -1;
+}
+
+// --------------------------------------------------
+// Canvas sizing and rendering
+// --------------------------------------------------
+
+function resizeCanvas() {
+  const rect=wrap.getBoundingClientRect();
+  if (!rect.width || !rect.height) return;
+
+  const dpr=Math.min(window.devicePixelRatio||1,2);
+  const w=Math.max(1,Math.round(rect.width*dpr));
+  const h=Math.max(1,Math.round(rect.height*dpr));
+
+  if (canvas.width!==w || canvas.height!==h) {
+    canvas.width=w;
+    canvas.height=h;
+  }
+
+  document.getElementById("canvas-size").textContent=`${w} × ${h}`;
+}
+
+function makeColorTable() {
+  const colors=currentScheme.colors;
+  const count=2048;
+  const table=new Uint8Array(count*3);
+
+  for(let i=0;i<count;i++) {
+    const t=i/(count-1)*(colors.length-1);
+    const j=Math.min(Math.floor(t),colors.length-2);
+    const frac=t-j;
+
+    for(let k=0;k<3;k++) {
+      table[i*3+k]=Math.round(
+        colors[j][k]*(1-frac)+colors[j+1][k]*frac
+      );
+    }
+  }
+  return table;
+}
+
+function renderFractal() {
+  if (!state.fractal) return;
+
+  resizeCanvas();
+
+  const w=canvas.width,h=canvas.height;
+  if (!w || !h) return;
+
+  const id=++state.renderId;
+  const f=state.fractal;
+  const p=getParams(f);
+  lastRenderParams=p;
+
+  const view=views[f.id] || views.mandelbrot;
+  const aspect=w/h;
+  const baseHeight=view[3]-view[2];
+  const baseWidth=view[1]-view[0];
+
+  // Keep the aspect ratio correct to prevent distortion.
+  const rangeY=baseHeight/state.zoom;
+  const rangeX=Math.max(baseWidth,baseHeight*aspect)/state.zoom;
+  const centerX=(view[0]+view[1])/2+state.offsetX;
+  const centerY=(view[2]+view[3])/2+state.offsetY;
+
+  const xStart=centerX-rangeX/2;
+  const yStart=centerY-rangeY/2;
+
+  const dx=rangeX/w;
+  const dy=rangeY/h;
+  const image=ctx.createImageData(w,h);
+  const data=image.data;
+  const table=makeColorTable();
+  const colorCount=table.length/3;
+
+  const loading=document.getElementById("loading");
+  const progress=document.getElementById("progress-bar");
+  loading.classList.add("visible");
+  progress.style.width="0%";
+
+  // Render in batches so the interface stays responsive.
+  let row=0;
+  const batchSize=Math.max(1,Math.floor(180000/w));
+
+  function batch() {
+    if (id!==state.renderId) return;
+
+    const end=Math.min(h,row+batchSize);
+
+    for(let py=row;py<end;py++) {
+      const y=yStart+(py+0.5)*dy;
+
+      for(let px=0;px<w;px++) {
+        const x=xStart+(px+0.5)*dx;
+        const value=computeFractal(x,y,p);
+        const idx=(py*w+px)*4;
+
+        if (value<0 || !Number.isFinite(value)) {
+          data[idx]=0;
+          data[idx+1]=0;
+          data[idx+2]=0;
+        } else {
+          // Newton's method returns root colors; escape-time
+          // fractals use the iteration count for their palette.
+          let ci;
+          if (f.id==="newton" || f.id==="cpotts") {
+            ci=Math.floor(value*7)%colorCount;
+          } else {
+            ci=Math.floor(value*10)%colorCount;
+          }
+
+          ci=Math.max(0,Math.min(colorCount-1,ci));
+          data[idx]=table[ci*3];
+          data[idx+1]=table[ci*3+1];
+          data[idx+2]=table[ci*3+2];
+        }
+
+        data[idx+3]=255;
+      }
+    }
+
+    row=end;
+    progress.style.width=(row/h*100)+"%";
+
+    // Display partial results as they become available.
+    ctx.putImageData(image,0,0);
+
+    if(row<h) {
+      requestAnimationFrame(batch);
+    } else {
+      loading.classList.remove("visible");
+      progress.style.width="0%";
+      updateZoomDisplay();
+    }
+  }
+
+  requestAnimationFrame(batch);
+}
+
+function updateZoomDisplay() {
+  document.getElementById("zoom-indicator").textContent=state.zoom.toFixed(2)+"×";
+  document.getElementById("info-zoom").textContent="Zoom: "+state.zoom.toFixed(2)+"×";
+}
+
+function resetView() {
+  state.zoom=1;
+  state.offsetX=0;
+  state.offsetY=0;
+  renderFractal();
+}
+
+// --------------------------------------------------
+// Pan, zoom and pointer coordinates
+// --------------------------------------------------
+
+function pointerComplex(clientX,clientY) {
+  const rect=canvas.getBoundingClientRect();
+  const px=clientX-rect.left;
+  const py=clientY-rect.top;
+
+  const view=views[state.fractal.id];
+  const aspect=canvas.width/canvas.height;
+  const rangeY=(view[3]-view[2])/state.zoom;
+  const rangeX=Math.max(view[1]-view[0],(view[3]-view[2])*aspect)/state.zoom;
+  const cx=(view[0]+view[1])/2+state.offsetX;
+  const cy=(view[2]+view[3])/2+state.offsetY;
+
+  return {
+    x:cx-rangeX/2+(px/rect.width)*rangeX,
+    y:cy-rangeY/2+(py/rect.height)*rangeY,
+    px,py,rect
+  };
+}
+
+wrap.addEventListener("pointerdown",e => {
+  if (!state.fractal || e.button!==0) return;
+
+  state.dragging=true;
+  state.dragStart={x:e.clientX,y:e.clientY};
+  canvas.style.cursor="grabbing";
+  wrap.setPointerCapture?.(e.pointerId);
+});
+
+wrap.addEventListener("pointermove",e => {
+  if (!state.fractal) return;
+
+  const c=pointerComplex(e.clientX,e.clientY);
+  document.getElementById("info-coords").textContent=
+    `X: ${c.x.toFixed(6)}  Y: ${c.y.toFixed(6)}`;
+
+  if(state.dragging && state.dragStart) {
+    const view=views[state.fractal.id];
+    const aspect=canvas.width/canvas.height;
+    const rangeY=(view[3]-view[2])/state.zoom;
+    const rangeX=Math.max(view[1]-view[0],(view[3]-view[2])*aspect)/state.zoom;
+
+    state.offsetX-=(e.clientX-state.dragStart.x)*rangeX/c.rect.width;
+    state.offsetY-=(e.clientY-state.dragStart.y)*rangeY/c.rect.height;
+
+    state.dragStart={x:e.clientX,y:e.clientY};
+    renderFractal();
+  }
+});
+
+function stopDragging() {
+  state.dragging=false;
+  state.dragStart=null;
+  canvas.style.cursor="grab";
+}
+
+wrap.addEventListener("pointerup",stopDragging);
+wrap.addEventListener("pointercancel",stopDragging);
+
+wrap.addEventListener("wheel",e => {
+  e.preventDefault();
+  if(!state.fractal) return;
+
+  const before=pointerComplex(e.clientX,e.clientY);
+  const factor=e.deltaY<0?1.25:1/1.25;
+  state.zoom=Math.max(0.1,Math.min(1e8,state.zoom*factor));
+
+  const after=pointerComplex(e.clientX,e.clientY);
+  state.offsetX+=before.x-after.x;
+  state.offsetY+=before.y-after.y;
+
+  renderFractal();
+},{passive:false});
+
+// --------------------------------------------------
+// Buttons and keyboard
+// --------------------------------------------------
+
+document.getElementById("btn-render").addEventListener("click",renderFractal);
+document.getElementById("btn-reset").addEventListener("click",resetView);
+
+document.getElementById("btn-export").addEventListener("click",() => {
+  if(!state.fractal) return;
+  const link=document.createElement("a");
+  link.download=state.fractal.id+"-"+Date.now()+".png";
+  link.href=canvas.toDataURL("image/png");
+  link.click();
+});
+
+document.getElementById("btn-history").addEventListener("click",() => {
+  document.getElementById("history-panel").classList.toggle("visible");
+});
+
+document.getElementById("btn-fullscreen").addEventListener("click",async () => {
+  try {
+    if(!document.fullscreenElement) await document.getElementById("main").requestFullscreen();
+    else await document.exitFullscreen();
+  } catch(err) {
+    console.warn("Fullscreen unavailable:",err);
+  }
+});
+
+function stopAnimation() {
+  state.animating=false;
+  if(state.animFrame) cancelAnimationFrame(state.animFrame);
+  state.animFrame=null;
+  document.getElementById("btn-animate").textContent="▶ Animate";
+}
+
+document.getElementById("btn-animate").addEventListener("click",() => {
+  if(!state.fractal) return;
+
+  if(state.animating) {
+    stopAnimation();
+    return;
+  }
+
+  state.animating=true;
+  document.getElementById("btn-animate").textContent="⏸ Pause";
+
+  let frame=0;
+
+  function animate() {
+    if(!state.animating || !state.fractal) return;
+
+    const f=state.fractal;
+    const field=f.fields.find(x=>x[0]==="param") ||
+                f.fields.find(x=>x[0]==="cReal");
+
+    if(field) {
+      const [key,,min,max,step]=field;
+      const input=document.getElementById("param-"+key);
+      if(input) {
+        const span=max-min;
+        const value=min+(Math.sin(frame*0.035)+1)*0.5*span;
+        input.value=(Math.round(value/step)*step).toFixed(
+          Math.max(0,((String(step).split(".")[1]||"").length))
+        );
+        input.dispatchEvent(new Event("input",{bubbles:true}));
+      }
+    }
+
+    frame++;
+    state.animFrame=requestAnimationFrame(animate);
+  }
+
+  animate();
+});
+
+window.addEventListener("keydown",e => {
+  if(e.target.matches("input,textarea,select")) return;
+  if(!state.fractal) return;
+
+  if(e.key==="+" || e.key==="=") {
+    state.zoom=Math.min(1e8,state.zoom*1.25);
+    renderFractal();
+  } else if(e.key==="-") {
+    state.zoom=Math.max(0.1,state.zoom/1.25);
+    renderFractal();
+  } else if(e.key.toLowerCase()==="r") {
+    resetView();
+  } else if(e.key==="Escape") {
+    stopAnimation();
+  }
+});
+
+window.addEventListener("resize",() => {
+  resizeCanvas();
+  renderFractal();
+});
+
+// --------------------------------------------------
+// Start
+// --------------------------------------------------
+
+function init() {
+  buildFractalGrid();
+  buildColorPresets();
+  resizeCanvas();
+  selectFractal(fractals[0]);
+}
+
+if(document.readyState==="loading") {
+  document.addEventListener("DOMContentLoaded",init);
+} else {
+  init();
+}
+</script>
+</body>
+</html>
